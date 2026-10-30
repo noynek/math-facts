@@ -36,6 +36,8 @@ function App() {
   const [remaining, setRemaining] = useState(120);
   const [bonusNumbers, setBonusNumbers] = useState<number[]>([]);
   const [bonusTry, setBonusTry] = useState(0);
+  const [bonusOnly, setBonusOnly] = useState(false);
+  const [bonusWon, setBonusWon] = useState(false);
   const [result, setResult] = useState<Session>();
   const [breakdown, setBreakdown] = useState<ReturnType<typeof rewards>>();
   const [review, setReview] = useState(false);
@@ -97,7 +99,22 @@ function App() {
     setAnswer("");
     started.current = Date.now();
   }
+  function openBonus(direct = false) {
+    setBonusOnly(direct);
+    setBonusNumbers(bonus());
+    setBonusTry(0);
+    setFeedback("");
+    setAnswer("");
+    setScreen("bonus");
+  }
+  function completeBonus(won: boolean) {
+    if (bonusOnly) {
+      setBonusWon(won);
+      setScreen("bonus-result");
+    } else finish(won);
+  }
   function start() {
+    setBonusOnly(false);
     sessionId.current = crypto.randomUUID();
     finishing.current = false;
     setWarm(0);
@@ -117,11 +134,7 @@ function App() {
   }
   function afterSpeed() {
     if (data.settings.bonusEnabled) {
-      setBonusNumbers(bonus());
-      setBonusTry(0);
-      setFeedback("");
-      setAnswer("");
-      setScreen("bonus");
+      openBonus();
     } else finish(false);
   }
   function finish(won: boolean) {
@@ -191,14 +204,14 @@ function App() {
     if (screen === "bonus") {
       if (Number(answer) === bonusNumbers.reduce((a, b) => a + b, 0)) {
         chime();
-        finish(true);
+        completeBonus(true);
       } else if (bonusTry === 0) {
         setBonusTry(1);
         setFeedback(
           "Try adding the ones first, then the tens. Remember to carry a group of ten!",
         );
         setAnswer("");
-      } else finish(false);
+      } else completeBonus(false);
       return;
     }
     if (!problem) return;
@@ -437,6 +450,19 @@ function App() {
                 </button>
               </div>
             </section>
+            {data.settings.bonusEnabled && (
+              <div className="bonus-shortcut">
+                <div>
+                  <b>A bigger little challenge</b>
+                  <p>
+                    Three numbers, no timer. Practice just for the fun of it.
+                  </p>
+                </div>
+                <button className="secondary" onClick={() => openBonus(true)}>
+                  Bonus practice →
+                </button>
+              </div>
+            )}
             <div className="bottom-note">
               <span>✦</span>
               <p>
@@ -450,7 +476,9 @@ function App() {
           </>
         )}
         {["warm", "speed", "bonus"].includes(screen) && (
-          <section className={`game panel ${screen === "bonus" ? "bonus-game" : ""}`}>
+          <section
+            className={`game panel ${screen === "bonus" ? "bonus-game" : ""}`}
+          >
             <div className="game-top">
               <span className="eyebrow">
                 {screen === "warm"
@@ -488,18 +516,34 @@ function App() {
             )}
             {screen === "bonus" ? (
               <div className="column-addition">
-                <div className="place-labels" aria-hidden="true"><span>Tens</span><span>Ones</span></div>
-                <div className="equation stacked-equation" role="math" aria-label={bonusNumbers.join(" plus ")}>
+                <div className="place-labels" aria-hidden="true">
+                  <span>Tens</span>
+                  <span>Ones</span>
+                </div>
+                <div
+                  className="equation stacked-equation"
+                  role="math"
+                  aria-label={bonusNumbers.join(" plus ")}
+                >
                   {bonusNumbers.map((number, index) => (
-                    <div className="addition-row" key={index} aria-hidden="true">
-                      <span className="addition-sign">{index === bonusNumbers.length - 1 ? "+" : ""}</span>
-                      <span>{Math.floor(number / 10)}</span><span>{number % 10}</span>
+                    <div
+                      className="addition-row"
+                      key={index}
+                      aria-hidden="true"
+                    >
+                      <span className="addition-sign">
+                        {index === bonusNumbers.length - 1 ? "+" : ""}
+                      </span>
+                      <span>{Math.floor(number / 10)}</span>
+                      <span>{number % 10}</span>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="equation">{problem && label(problem)} <span>=</span></div>
+              <div className="equation">
+                {problem && label(problem)} <span>=</span>
+              </div>
             )}
             {feedback ? (
               <div className="feedback" role="status">
@@ -529,10 +573,33 @@ function App() {
               answerForm
             )}
             {screen === "bonus" && (
-              <button className="text-button" onClick={() => finish(false)}>
-                Skip bonus and see my results →
+              <button
+                className="text-button"
+                onClick={() => (bonusOnly ? setScreen("home") : finish(false))}
+              >
+                {bonusOnly ? "Back to home" : "Skip bonus and see my results →"}
               </button>
             )}
+          </section>
+        )}
+        {screen === "bonus-result" && (
+          <section className="panel results">
+            <p className="eyebrow">BONUS PRACTICE</p>
+            <h1>{bonusWon ? "Nicely added!" : "Every try helps you grow."}</h1>
+            <p>
+              {bonusNumbers.join(" + ")} ={" "}
+              {bonusNumbers.reduce((a, b) => a + b, 0)}
+            </p>
+            <p>
+              Just-for-fun practice. Game minutes are earned during full
+              practice sessions.
+            </p>
+            <button className="primary" onClick={() => openBonus(true)}>
+              Try another question →
+            </button>
+            <button className="text-button" onClick={() => setScreen("home")}>
+              Back to home
+            </button>
           </section>
         )}
         {screen === "results" && result && breakdown && (

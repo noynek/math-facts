@@ -61,3 +61,5 @@ If `origin` already exists, use that remote rather than adding it again.
 The timer uses a wall-clock deadline, so backgrounding a tab does not extend the speed round. An unfinished session keeps fact practice records but earns no minutes. Personal records require at least 85% accuracy. Sound is generated quietly on-device and defaults off.
 
 Browser checks run with `npx playwright install chromium` followed by `npm run test:e2e`. They exercise addition and subtraction, timed expiry, warm-up corrections, keypad editing, bonus retries, skipping disabled bonuses, reward totals, review, parent settings, persistence, and desktop/mobile layouts.
+
+For direct access, choose **Bonus practice** on the home screen. This untimed mode offers repeated three-number addition questions, hints, and answer feedback without starting a full session. Standalone bonus practice does not earn minutes or count toward daily rewarded sessions or fact mastery. The home shortcut follows the parent's bonus-challenge setting.

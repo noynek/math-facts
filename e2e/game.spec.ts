@@ -34,10 +34,16 @@ test("complete practice, reward, persistence, and parent dashboard", async ({
     page.getByText("Remember to carry", { exact: false }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Try again", exact: true }).click();
-  await page.screenshot({path: `/private/tmp/math-minutes-columns-${test.info().project.name}.png`, fullPage: true});
+  await page.screenshot({
+    path: `/private/tmp/math-minutes-columns-${test.info().project.name}.png`,
+    fullPage: true,
+  });
   const nums = (await page.getByRole("math").getAttribute("aria-label"))!
-    .match(/\d+/g)!.map(Number);
-  await page.getByLabel("Your answer").fill(String(nums.reduce((a, b) => a + b, 0)));
+    .match(/\d+/g)!
+    .map(Number);
+  await page
+    .getByLabel("Your answer")
+    .fill(String(nums.reduce((a, b) => a + b, 0)));
   await page.getByLabel("Your answer").press("Enter");
   await expect(page.getByText("Look at you grow!")).toBeVisible();
   await expect(page.locator(".reward-orb")).toContainText("+12");
@@ -98,10 +104,37 @@ test("subtraction, wrong-answer review, and bonus-disabled completion", async ({
   await expect(page.getByText("Look at you grow!")).toBeVisible();
   await expect(page.locator(".reward-orb")).toContainText("+5");
   await page.getByRole("button", { name: "Review missed problems" }).click();
-  await expect(page.locator(".review")).toContainText(/Think of|Then take away/);
+  await expect(page.locator(".review")).toContainText(
+    /Think of|Then take away/,
+  );
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("direct bonus practice repeats without changing earned rewards", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Bonus practice" }).click();
+  await expect(page.getByText("No timer. Take your time.")).toBeVisible();
+  const numbers = (await page.getByRole("math").getAttribute("aria-label"))!
+    .match(/\d+/g)!
+    .map(Number);
+  await page
+    .getByLabel("Your answer")
+    .fill(String(numbers.reduce((a, b) => a + b, 0)));
+  await page.getByLabel("Your answer").press("Enter");
+  await expect(page.getByText("Nicely added!")).toBeVisible();
+  await page.getByRole("button", { name: "Try another question" }).click();
+  await expect(page.getByRole("math")).toBeVisible();
+  await page.getByRole("button", { name: "Back to home", exact: true }).click();
+  await expect(page.locator(".minute-number")).toContainText("0");
+  const data = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("math-minutes-v1")!),
+  );
+  expect(data.sessions).toHaveLength(0);
+  expect(data.daily.sessions).toBe(0);
 });
