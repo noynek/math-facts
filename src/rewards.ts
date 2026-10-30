@@ -46,3 +46,15 @@ export function rewards(
       : Math.max(0, Math.min(requested, settings.dailyLimit - earned));
   return { lines, minutes, limited: minutes < requested };
 }
+
+/** Standalone challenges earn only their bonus, using the shared daily limits. */
+export function bonusReward(
+  correct: boolean,
+  settings: RewardSettings,
+  earned: number,
+  rewardedCount: number,
+) {
+  return correct && rewardedCount < settings.rewardedSessions
+    ? Math.max(0, Math.min(settings.bonus, settings.dailyLimit - earned))
+    : 0;
+}

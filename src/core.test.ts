@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { facts, strategy } from "./math";
 import { select } from "./adaptive";
 import { record, status } from "./mastery";
-import { rewards } from "./rewards";
+import { rewards, bonusReward } from "./rewards";
 import { fresh, load, save, normalize, today, valid } from "./storage";
 describe("curriculum", () => {
   it("generates every addition fact and expanded range", () => {
@@ -144,5 +144,16 @@ describe("persistence", () => {
         },
       }),
     ).toBe(false);
+  });
+});
+
+describe("standalone bonus rewards", () => {
+  it("uses only the bonus and respects both daily caps", () => {
+    const s = fresh().settings;
+    expect(bonusReward(true, s, 0, 0)).toBe(2);
+    expect(bonusReward(true, s, 19, 0)).toBe(1);
+    expect(bonusReward(true, s, 0, 2)).toBe(0);
+    expect(bonusReward(false, s, 0, 0)).toBe(0);
+    expect(bonusReward(true, s, 20, 0)).toBe(0);
   });
 });

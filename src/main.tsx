@@ -1,3 +1,4 @@
+import { BonusWorkspace } from "./BonusWorkspace";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -10,7 +11,7 @@ import {
 } from "./math";
 import { select } from "./adaptive";
 import { record, status } from "./mastery";
-import { accuracy, rewards } from "./rewards";
+import { accuracy, rewards, bonusReward } from "./rewards";
 import {
   load,
   save,
@@ -38,6 +39,7 @@ function App() {
   const [bonusTry, setBonusTry] = useState(0);
   const [bonusOnly, setBonusOnly] = useState(false);
   const [bonusWon, setBonusWon] = useState(false);
+  const [bonusMinutes, setBonusMinutes] = useState(0);
   const [result, setResult] = useState<Session>();
   const [breakdown, setBreakdown] = useState<ReturnType<typeof rewards>>();
   const [review, setReview] = useState(false);
@@ -109,6 +111,32 @@ function App() {
   }
   function completeBonus(won: boolean) {
     if (bonusOnly) {
+      const d = normalize(data);
+      const minutes = bonusReward(
+        won,
+        d.settings,
+        d.daily.minutes,
+        d.daily.sessions,
+      );
+      setBonusMinutes(minutes);
+      setData({
+        ...d,
+        daily: {
+          ...d.daily,
+          minutes: d.daily.minutes + minutes,
+          sessions: d.daily.sessions + Number(minutes > 0),
+        },
+        bonusHistory: [
+          ...(d.bonusHistory ?? []),
+          {
+            id: crypto.randomUUID(),
+            date: today(),
+            numbers: [...bonusNumbers],
+            correct: won,
+            minutes,
+          },
+        ],
+      });
       setBonusWon(won);
       setScreen("bonus-result");
     } else finish(won);
@@ -198,11 +226,14 @@ function App() {
       /* Sound is optional. */
     }
   }
-  function submit(e?: React.FormEvent) {
+  function submit(e?: React.FormEvent, bonusAnswer?: string) {
     e?.preventDefault();
-    if (!answer || feedback) return;
+    if (!(bonusAnswer ?? answer) || feedback) return;
     if (screen === "bonus") {
-      if (Number(answer) === bonusNumbers.reduce((a, b) => a + b, 0)) {
+      if (
+        Number(bonusAnswer ?? answer) ===
+        bonusNumbers.reduce((a, b) => a + b, 0)
+      ) {
         chime();
         completeBonus(true);
       } else if (bonusTry === 0) {
@@ -455,7 +486,8 @@ function App() {
                 <div>
                   <b>A bigger little challenge</b>
                   <p>
-                    Three numbers, no timer. Practice just for the fun of it.
+                    Three numbers, no timer. Earn up to {data.settings.bonus}{" "}
+                    game minutes per challenge.
                   </p>
                 </div>
                 <button className="secondary" onClick={() => openBonus(true)}>
@@ -515,31 +547,12 @@ function App() {
               />
             )}
             {screen === "bonus" ? (
-              <div className="column-addition">
-                <div className="place-labels" aria-hidden="true">
-                  <span>Tens</span>
-                  <span>Ones</span>
-                </div>
-                <div
-                  className="equation stacked-equation"
-                  role="math"
-                  aria-label={bonusNumbers.join(" plus ")}
-                >
-                  {bonusNumbers.map((number, index) => (
-                    <div
-                      className="addition-row"
-                      key={index}
-                      aria-hidden="true"
-                    >
-                      <span className="addition-sign">
-                        {index === bonusNumbers.length - 1 ? "+" : ""}
-                      </span>
-                      <span>{Math.floor(number / 10)}</span>
-                      <span>{number % 10}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <BonusWorkspace
+                key={bonusNumbers.join("-")}
+                numbers={bonusNumbers}
+                onSubmit={(value) => submit(undefined, value)}
+                disabled={!!feedback}
+              />
             ) : (
               <div className="equation">
                 {problem && label(problem)} <span>=</span>
@@ -570,7 +583,7 @@ function App() {
                 </button>
               </div>
             ) : (
-              answerForm
+              screen !== "bonus" && answerForm
             )}
             {screen === "bonus" && (
               <button
@@ -591,8 +604,11 @@ function App() {
               {bonusNumbers.reduce((a, b) => a + b, 0)}
             </p>
             <p>
-              Just-for-fun practice. Game minutes are earned during full
-              practice sessions.
+              +{bonusMinutes} game minutes earned · {data.daily.minutes} minutes
+              today.
+              {bonusWon && bonusMinutes === 0
+                ? " Today’s reward limit applies. You can keep practicing!"
+                : ""}
             </p>
             <button className="primary" onClick={() => openBonus(true)}>
               Try another question →
@@ -920,7 +936,40 @@ function App() {
               )}
             </section>
             <section className="panel">
-              <h2>Session history</h2>
+              <h2>Bonus challenge history</h2>
+              <p>
+                Correct standalone challenges earn the configured bonus
+                (currently {data.settings.bonus} minutes), within the shared
+                daily time and rewarded-session limits. Each challenge that
+                earns minutes uses one reward slot.
+              </p>
+              {(data.bonusHistory ?? []).length ? (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Challenge</th>
+                        <th>Result</th>
+                        <th>Earned</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...(data.bonusHistory ?? [])].reverse().map((b) => (
+                        <tr key={b.id}>
+                          <td>{b.date}</td>
+                          <td>{b.numbers.join(" + ")}</td>
+                          <td>{b.correct ? "Solved" : "Practiced"}</td>
+                          <td>{b.minutes} min</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p>No standalone challenges yet.</p>
+              )}
+              <h2 style={{ marginTop: 28 }}>Session history</h2>
               <div className="table-scroll">
                 <table>
                   <thead>

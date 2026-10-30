@@ -27,7 +27,15 @@ export type Session = {
   bonus: boolean;
   record: boolean;
 };
+export type BonusResult = {
+  id: string;
+  date: string;
+  numbers: number[];
+  correct: boolean;
+  minutes: number;
+};
 export type Data = {
+  bonusHistory?: BonusResult[];
   version: 1;
   settings: Settings;
   records: Records;
@@ -42,6 +50,7 @@ export const today = () => {
 export function fresh(): Data {
   return {
     version: 1,
+    bonusHistory: [],
     settings: {
       nickname: "",
       addition: true,
@@ -85,6 +94,22 @@ export function valid(d: unknown): d is Data {
       Array.isArray(v.records) ||
       !v.daily ||
       !v.bests
+    )
+      return false;
+    if (
+      v.bonusHistory !== undefined &&
+      (!Array.isArray(v.bonusHistory) ||
+        !v.bonusHistory.every(
+          (b) =>
+            b &&
+            typeof b.id === "string" &&
+            typeof b.date === "string" &&
+            Array.isArray(b.numbers) &&
+            b.numbers.length === 3 &&
+            b.numbers.every(nonnegative) &&
+            typeof b.correct === "boolean" &&
+            nonnegative(b.minutes),
+        ))
     )
       return false;
     const defaults = fresh().settings;

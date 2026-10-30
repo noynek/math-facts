@@ -929,3 +929,77 @@ th {
     flex-direction: column;
   }
 }
+.paper-grid {
+  width: 252px;
+  margin: 24px auto 0;
+}
+.place-headings,
+.carry-row,
+.answer-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.place-headings {
+  font-size: 11px;
+  color: #61765c;
+  margin-bottom: 8px;
+}
+.carry-row {
+  align-items: center;
+  justify-items: center;
+  min-height: 44px;
+  margin-bottom: 8px;
+}
+.bonus-workspace input {
+  min-width: 0;
+  text-align: center;
+  border: 1px solid #bdcbb4;
+  border-radius: 10px;
+  color: #263f38;
+  background: #f8faf4;
+  font-family: ui-monospace, monospace;
+}
+.bonus-workspace .carry-cell {
+  width: 38px;
+  height: 38px;
+  font-size: 23px;
+  background: #f2f4ea;
+}
+.bonus-workspace .answer-cell {
+  width: 100%;
+  height: 65px;
+  font-size: 42px;
+}
+.bonus-workspace .active-cell {
+  border: 2px solid #4c7441;
+  background: #edf4e5;
+}
+.digit-equation {
+  margin: 0 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 3px solid #718b65;
+  font:
+    600 48px/1.25 ui-monospace,
+    monospace;
+  letter-spacing: 0;
+}
+.paper-number {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.digit-equation .paper-number span {
+  color: #263f38;
+}
+.digit-equation .paper-plus {
+  position: absolute;
+  left: -24px;
+  color: #718b65;
+}
+.bonus-workspace .workspace-help {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 18px 0 0;
+}
