@@ -856,3 +856,41 @@ th {
     font-size: 11px;
   }
 }
+
+/* Keep place values aligned like a pencil-and-paper addition problem. */
+.column-addition {
+  width: 190px;
+  margin: 28px auto 10px;
+}
+.place-labels {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 13px 8px 0;
+  color: #718172;
+  font-size: 10px;
+  letter-spacing: .3px;
+}
+.place-labels span { width: 31.2px; text-align: center; }
+.stacked-equation {
+  margin: 0;
+  padding: 0 16px 8px;
+  border-bottom: 3px solid #718b65;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 52px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+.addition-row { display: grid; grid-template-columns: 1fr 1ch 1ch; }
+.stacked-equation .addition-row > span { color: #263f38; }
+.stacked-equation .addition-row .addition-sign { text-align: left; color: #718b65; }
+.bonus-game #answer {
+  width: 190px;
+  padding: 6px 16px;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: 0;
+}

@@ -450,7 +450,7 @@ function App() {
           </>
         )}
         {["warm", "speed", "bonus"].includes(screen) && (
-          <section className="game panel">
+          <section className={`game panel ${screen === "bonus" ? "bonus-game" : ""}`}>
             <div className="game-top">
               <span className="eyebrow">
                 {screen === "warm"
@@ -474,7 +474,7 @@ function App() {
             </h1>
             <p>
               {screen === "bonus"
-                ? "Add all three numbers. Scratch paper is welcome!"
+                ? "Start with the ones, then add the tens. Scratch paper is welcome!"
                 : screen === "warm"
                   ? "Five little problems to get your brain ready."
                   : "Accuracy first. Find your own rhythm."}
@@ -486,12 +486,21 @@ function App() {
                 aria-label="Seconds remaining"
               />
             )}
-            <div className="equation">
-              {screen === "bonus"
-                ? bonusNumbers.join(" + ")
-                : problem && label(problem)}{" "}
-              <span>=</span>
-            </div>
+            {screen === "bonus" ? (
+              <div className="column-addition">
+                <div className="place-labels" aria-hidden="true"><span>Tens</span><span>Ones</span></div>
+                <div className="equation stacked-equation" role="math" aria-label={bonusNumbers.join(" plus ")}>
+                  {bonusNumbers.map((number, index) => (
+                    <div className="addition-row" key={index} aria-hidden="true">
+                      <span className="addition-sign">{index === bonusNumbers.length - 1 ? "+" : ""}</span>
+                      <span>{Math.floor(number / 10)}</span><span>{number % 10}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="equation">{problem && label(problem)} <span>=</span></div>
+            )}
             {feedback ? (
               <div className="feedback" role="status">
                 <p>{feedback}</p>
