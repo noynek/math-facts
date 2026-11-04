@@ -1,3 +1,4 @@
+import { migrateBank, validBank, type Bank } from "./bank";
 import type { Operation, Fact } from "./math";
 import type { Records } from "./mastery";
 import type { RewardSettings } from "./rewards";
@@ -24,6 +25,8 @@ export type Session = {
   total: number;
   attempts: Attempt[];
   minutes: number;
+  cents?: number;
+  points?: number;
   bonus: boolean;
   record: boolean;
 };
@@ -33,10 +36,13 @@ export type BonusResult = {
   numbers: number[];
   correct: boolean;
   minutes: number;
+  cents?: number;
+  points?: number;
 };
 export type Data = {
   bonusHistory?: BonusResult[];
-  version: 1;
+  version: 1 | 2;
+  bank?: Bank;
   settings: Settings;
   records: Records;
   sessions: Session[];
@@ -49,7 +55,8 @@ export const today = () => {
 };
 export function fresh(): Data {
   return {
-    version: 1,
+    version: 2,
+    bank: migrateBank({ sessions: [] }),
     bonusHistory: [],
     settings: {
       nickname: "",
@@ -75,6 +82,9 @@ export function fresh(): Data {
   };
 }
 export function normalize(d: Data): Data {
+  const migrated = d.bank ?? migrateBank(d);
+  if (!d.bank) migrated.config.minuteCap = d.settings.dailyLimit;
+  d = { ...d, version: 2, bank: migrated };
   if (d.daily.date !== today())
     return { ...d, daily: { date: today(), minutes: 0, sessions: 0 } };
   return d;
@@ -86,7 +96,7 @@ export function valid(d: unknown): d is Data {
     const v = d as Data;
     if (
       !v ||
-      v.version !== 1 ||
+      ![1, 2].includes(v.version) ||
       !v.settings ||
       !Array.isArray(v.sessions) ||
       !v.records ||
@@ -108,9 +118,13 @@ export function valid(d: unknown): d is Data {
             b.numbers.length === 3 &&
             b.numbers.every(nonnegative) &&
             typeof b.correct === "boolean" &&
-            nonnegative(b.minutes),
+            nonnegative(b.minutes) &&
+            (b.cents === undefined || nonnegative(b.cents)) &&
+            (b.points === undefined || nonnegative(b.points)),
         ))
     )
+      return false;
+    if ((v.version === 2 && !v.bank) || (v.bank && !validBank(v.bank)))
       return false;
     const defaults = fresh().settings;
     if (
@@ -157,6 +171,8 @@ export function valid(d: unknown): d is Data {
           nonnegative(s.total) &&
           s.correct <= s.total &&
           nonnegative(s.minutes) &&
+          (s.cents === undefined || nonnegative(s.cents)) &&
+          (s.points === undefined || nonnegative(s.points)) &&
           typeof s.bonus === "boolean" &&
           typeof s.record === "boolean" &&
           Array.isArray(s.attempts) &&

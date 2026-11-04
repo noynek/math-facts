@@ -1,3 +1,5 @@
+import { award, balances, money, newBank } from "./bank";
+import { RewardsPanel, GoalCard } from "./RewardsPanel";
 import { BonusWorkspace } from "./BonusWorkspace";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -40,6 +42,7 @@ function App() {
   const [bonusOnly, setBonusOnly] = useState(false);
   const [bonusWon, setBonusWon] = useState(false);
   const [bonusMinutes, setBonusMinutes] = useState(0);
+  const [bonusCents, setBonusCents] = useState(0);
   const [result, setResult] = useState<Session>();
   const [breakdown, setBreakdown] = useState<ReturnType<typeof rewards>>();
   const [review, setReview] = useState(false);
@@ -91,6 +94,16 @@ function App() {
     const id = setInterval(tick, 100);
     return () => clearInterval(id);
   }, [screen]);
+  const bank = data.bank ?? newBank();
+  const balance = balances(bank);
+  const earnedToday = bank.entries
+    .filter(
+      (e) => e.date === today() && (e.kind === "earned" || e.kind === "legacy"),
+    )
+    .reduce(
+      (a, e) => ({ minutes: a.minutes + e.minutes, cents: a.cents + e.cents }),
+      { minutes: 0, cents: 0 },
+    );
   const pool = facts(op, data.settings.maxOperand, data.settings.maxMinuend);
   const mastered = (operation: Operation) =>
     facts(operation, data.settings.maxOperand, data.settings.maxMinuend).filter(
@@ -112,28 +125,36 @@ function App() {
   function completeBonus(won: boolean) {
     if (bonusOnly) {
       const d = normalize(data);
-      const minutes = bonusReward(
+      const points = bonusReward(
         won,
         d.settings,
         d.daily.minutes,
         d.daily.sessions,
       );
+      const id = crypto.randomUUID();
+      const nextBank = award(d.bank!, points, today(), id, "Bonus challenge");
+      const earned = nextBank.entries[nextBank.entries.length - 1];
+      const minutes = earned.minutes;
       setBonusMinutes(minutes);
+      setBonusCents(earned.cents);
       setData({
         ...d,
+        bank: nextBank,
         daily: {
           ...d.daily,
-          minutes: d.daily.minutes + minutes,
-          sessions: d.daily.sessions + Number(minutes > 0),
+          minutes: d.daily.minutes + points,
+          sessions: d.daily.sessions + Number(points > 0),
         },
         bonusHistory: [
           ...(d.bonusHistory ?? []),
           {
-            id: crypto.randomUUID(),
+            id,
             date: today(),
             numbers: [...bonusNumbers],
             correct: won,
             minutes,
+            cents: earned.cents,
+            points,
           },
         ],
       });
@@ -183,13 +204,25 @@ function App() {
         d.daily.sessions,
       );
       const isRecord = accuracy(score) >= 0.85 && score.correct > d.bests[op];
+      const nextBank = award(
+        d.bank!,
+        reward.minutes,
+        today(),
+        sessionId.current,
+        `${op} practice: ${score.correct}/${score.total} correct`,
+      );
+      const earned = nextBank.entries.find(
+        (e) => e.source === sessionId.current,
+      )!;
       const s: Session = {
         ...score,
         id: sessionId.current,
         date: today(),
         op,
         attempts: list,
-        minutes: reward.minutes,
+        minutes: earned.minutes,
+        cents: earned.cents,
+        points: reward.minutes,
         bonus: won,
         record: isRecord,
       };
@@ -197,6 +230,7 @@ function App() {
       setBreakdown(reward);
       return {
         ...d,
+        bank: nextBank,
         sessions: [...d.sessions, s],
         daily: {
           date: today(),
@@ -385,26 +419,42 @@ function App() {
               </div>
               <div className="minutes-card">
                 <span className="tiny-star">✧</span>
-                <p>YOUR GAME TIME TODAY</p>
+                <p>
+                  {bank.config.mode === "savings"
+                    ? "YOUR SAVINGS BANK"
+                    : "AVAILABLE GAME TIME"}
+                </p>
                 <div className="minute-number">
-                  {data.daily.minutes}
-                  <span>min</span>
+                  {bank.config.mode === "savings"
+                    ? money(balance.cents)
+                    : balance.minutes}
+                  {bank.config.mode !== "savings" && <span>min</span>}
                 </div>
                 <div className="meter">
                   <i
                     style={{
-                      width: `${Math.min(100, (data.daily.minutes / Math.max(1, data.settings.dailyLimit)) * 100)}%`,
+                      width: `${Math.min(100, (bank.config.mode === "savings" ? earnedToday.cents / Math.max(1, bank.config.centCap) : earnedToday.minutes / Math.max(1, bank.config.minuteCap)) * 100)}%`,
                     }}
                   />
                 </div>
                 <small>
-                  of {data.settings.dailyLimit} minutes you can earn
+                  {earnedToday.minutes} minutes and {money(earnedToday.cents)}{" "}
+                  earned today
                 </small>
                 <div className="earned-note">
-                  A little practice. A little play. ✓
+                  {bank.openingConfirmed
+                    ? "Unused rewards carry forward. ✓"
+                    : "Provisional balance — parent confirmation needed."}
                 </div>
               </div>
             </div>
+            <GoalCard bank={bank} />
+            <button
+              className="text-button"
+              onClick={() => setScreen("activity")}
+            >
+              See my activity & rewards →
+            </button>
             <section className="practice-section">
               <div className="section-top">
                 <h2>What will you practice?</h2>
@@ -486,8 +536,9 @@ function App() {
                 <div>
                   <b>A bigger little challenge</b>
                   <p>
-                    Three numbers, no timer. Earn up to {data.settings.bonus}{" "}
-                    game minutes per challenge.
+                    {bank.config.mode === "none"
+                      ? "Three numbers, no timer. Practice for the joy of learning."
+                      : `Three numbers, no timer. Earn up to ${bank.config.mode !== "savings" ? `${data.settings.bonus * bank.config.minutesPerPoint} game minutes` : ""}${bank.config.mode === "both" ? " and " : ""}${bank.config.mode !== "time" ? money(data.settings.bonus * bank.config.centsPerPoint) : ""} per challenge, within your daily limits.`}
                   </p>
                 </div>
                 <button className="secondary" onClick={() => openBonus(true)}>
@@ -604,10 +655,12 @@ function App() {
               {bonusNumbers.reduce((a, b) => a + b, 0)}
             </p>
             <p>
-              +{bonusMinutes} game minutes earned · {data.daily.minutes} minutes
-              today.
-              {bonusWon && bonusMinutes === 0
-                ? " Today’s reward limit applies. You can keep practicing!"
+              +{bonusMinutes} game minutes and {money(bonusCents)} earned ·{" "}
+              {balance.minutes} minutes available.
+              {bonusWon && bonusMinutes === 0 && bonusCents === 0
+                ? bank.config.mode === "none"
+                  ? " Practice-only mode: your learning keeps growing!"
+                  : " Today’s reward limit applies. You can keep practicing!"
                 : ""}
             </p>
             <button className="primary" onClick={() => openBonus(true)}>
@@ -624,8 +677,15 @@ function App() {
             <h1>Look at you grow!</h1>
             <p>You showed up, practiced, and made progress.</p>
             <div className="reward-orb">
-              +{result.minutes}
-              <small>game minutes earned</small>
+              +
+              {bank.config.mode === "savings"
+                ? money(result.cents ?? 0)
+                : result.minutes}
+              <small>
+                {bank.config.mode === "savings"
+                  ? "savings earned"
+                  : "game minutes earned"}
+              </small>
             </div>
             <div className="result-stats">
               <div>
@@ -635,7 +695,14 @@ function App() {
                 <b>{Math.round(accuracy(result) * 100)}%</b>accuracy
               </div>
               <div>
-                <b>{data.daily.minutes}</b>minutes today
+                <b>
+                  {bank.config.mode === "savings"
+                    ? money(earnedToday.cents)
+                    : earnedToday.minutes}
+                </b>
+                {bank.config.mode === "savings"
+                  ? "saved today"
+                  : "minutes today"}
               </div>
             </div>
             {result.record && (
@@ -648,7 +715,7 @@ function App() {
               {breakdown.lines.map(([name, n]) => (
                 <div key={name}>
                   <span>{name}</span>
-                  <b>+{n} min</b>
+                  <b>+{n} points</b>
                 </div>
               ))}
               {breakdown.limited && (
@@ -658,8 +725,12 @@ function App() {
                 </p>
               )}
               <div>
-                <b>Added to today’s game time</b>
+                <b>Game time earned</b>
                 <b>{result.minutes} min</b>
+              </div>
+              <div>
+                <b>Savings earned</b>
+                <b>{money(result.cents ?? 0)}</b>
               </div>
             </div>
             <button className="text-button" onClick={() => setReview(!review)}>
@@ -686,6 +757,48 @@ function App() {
             )}
             <button className="primary" onClick={() => setScreen("home")}>
               All done for now ✓
+            </button>
+          </section>
+        )}
+        {screen === "activity" && (
+          <section className="panel">
+            <p className="eyebrow">YOUR LITTLE WINS</p>
+            <h1>Look how it adds up.</h1>
+            <p>
+              {balance.minutes} game minutes available · {money(balance.cents)}{" "}
+              saved
+            </p>
+            <GoalCard bank={bank} />
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Activity</th>
+                    <th>Game time</th>
+                    <th>Savings</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...bank.entries].reverse().map((e) => (
+                    <tr key={e.id}>
+                      <td>{e.date}</td>
+                      <td>{e.note}</td>
+                      <td>
+                        {e.minutes > 0 ? "+" : ""}
+                        {e.minutes} min
+                      </td>
+                      <td>{money(e.cents)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!bank.entries.length && (
+              <p>Your first little win will appear here.</p>
+            )}
+            <button className="primary" onClick={() => setScreen("home")}>
+              Back to home
             </button>
           </section>
         )}
@@ -722,8 +835,8 @@ function App() {
             <p className="eyebrow">THE BIGGER PICTURE</p>
             <h1>A little practice adds up.</h1>
             <p>
-              Progress is saved on this browser. Game minutes are a record for
-              you to manage.
+              Progress is saved on this browser. Time and savings are rewards
+              for you to manage.
             </p>
             <div className="parent-grid">
               {(["addition", "subtraction"] as Operation[]).map((operation) => {
@@ -787,161 +900,175 @@ function App() {
                 );
               })}
             </div>
-            <section className="panel settings">
-              <h2>Make it yours</h2>
-              <label>
-                Child’s nickname
-                <input
-                  maxLength={30}
-                  value={data.settings.nickname}
-                  onChange={(e) => setting("nickname", e.target.value)}
-                />
-              </label>
-              <div className="settings-grid">
-                {(
-                  ["addition", "subtraction", "bonusEnabled", "sound"] as const
-                ).map((key) => (
-                  <label className="check" key={key}>
-                    <input
-                      type="checkbox"
-                      checked={data.settings[key]}
-                      onChange={(e) => setting(key, e.target.checked)}
-                    />
-                    {
-                      {
-                        addition: "Addition practice",
-                        subtraction: "Subtraction practice",
-                        bonusEnabled: "Optional bonus challenges",
-                        sound: "Gentle answer sound",
-                      }[key]
-                    }
-                  </label>
-                ))}
-                {(
-                  [
-                    ["maxOperand", "Largest operand / subtrahend", 1, 12],
-                    [
-                      "maxMinuend",
-                      "Largest subtraction starting number",
-                      0,
-                      24,
-                    ],
-                    ["dailyLimit", "Maximum game minutes per day", 0, 240],
-                    ["rewardedSessions", "Rewarded sessions per day", 0, 20],
-                    ["completion", "Session completion minutes", 0, 60],
-                    ["tier70", "70% accuracy minutes", 0, 60],
-                    ["tier85", "85% accuracy minutes", 0, 60],
-                    ["tier95", "95% accuracy minutes", 0, 60],
-                    ["improvement", "Improvement bonus minutes", 0, 60],
-                    ["bonus", "Bonus challenge minutes", 0, 60],
-                  ] as const
-                ).map(([key, text, min, max]) => (
-                  <label key={key}>
-                    {text}
-                    <input
-                      type="number"
-                      min={min}
-                      max={max}
-                      value={data.settings[key]}
-                      onChange={(e) =>
-                        setting(
-                          key,
-                          Math.max(
-                            min,
-                            Math.min(max, Math.floor(Number(e.target.value))),
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-              <p>
-                Changes save automatically. Mastery needs at least five
-                consecutive correct answers, three sessions, and two practice
-                days. Personal records and improvement bonuses require at least
-                85% accuracy.
-              </p>
-              <h3>Progress & backups</h3>
-              <div className="backup-actions">
-                <button
-                  className="secondary"
-                  onClick={() => {
-                    const url = URL.createObjectURL(
-                      new Blob([JSON.stringify(data, null, 2)], {
-                        type: "application/json",
-                      }),
-                    );
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `math-minutes-${today()}.json`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                >
-                  Export progress ↓
-                </button>
-                <label className="secondary import">
-                  Import progress ↑
+            <RewardsPanel data={data} onChange={setData}>
+              <section className="panel settings">
+                <h2>Practice settings</h2>
+                <label>
+                  Child’s nickname
                   <input
-                    type="file"
-                    accept="application/json,.json"
-                    onChange={async (e) => {
-                      try {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const imported: unknown = JSON.parse(await file.text());
-                        if (!valid(imported)) throw Error();
-                        if (
-                          confirm("Replace current progress with this backup?")
-                        ) {
-                          setData(normalize(imported));
-                          setNotice("Progress imported successfully.");
-                        }
-                      } catch {
-                        setNotice(
-                          "That backup could not be read. Choose a Math Minutes JSON export.",
-                        );
-                      }
-                      e.target.value = "";
-                    }}
+                    maxLength={30}
+                    value={data.settings.nickname}
+                    onChange={(e) => setting("nickname", e.target.value)}
                   />
                 </label>
-                <button
-                  className="text-button danger"
-                  onClick={() => setReset(true)}
-                >
-                  Reset progress
-                </button>
-              </div>
-              {reset && (
-                <div role="alert" className="notice">
-                  <p>
-                    Erase all saved practice, records, and settings on this
-                    browser? Export a backup first if you want to keep them.
-                  </p>
+                <div className="settings-grid">
+                  {(
+                    [
+                      "addition",
+                      "subtraction",
+                      "bonusEnabled",
+                      "sound",
+                    ] as const
+                  ).map((key) => (
+                    <label className="check" key={key}>
+                      <input
+                        type="checkbox"
+                        checked={data.settings[key]}
+                        onChange={(e) => setting(key, e.target.checked)}
+                      />
+                      {
+                        {
+                          addition: "Addition practice",
+                          subtraction: "Subtraction practice",
+                          bonusEnabled: "Optional bonus challenges",
+                          sound: "Gentle answer sound",
+                        }[key]
+                      }
+                    </label>
+                  ))}
+                  {(
+                    [
+                      ["maxOperand", "Largest operand / subtrahend", 1, 12],
+                      [
+                        "maxMinuend",
+                        "Largest subtraction starting number",
+                        0,
+                        24,
+                      ],
+                      ["dailyLimit", "Maximum practice points per day", 0, 240],
+                      ["rewardedSessions", "Rewarded sessions per day", 0, 20],
+                      ["completion", "Session completion points", 0, 60],
+                      ["tier70", "70% accuracy points", 0, 60],
+                      ["tier85", "85% accuracy points", 0, 60],
+                      ["tier95", "95% accuracy points", 0, 60],
+                      ["improvement", "Improvement bonus points", 0, 60],
+                      ["bonus", "Bonus challenge points", 0, 60],
+                    ] as const
+                  ).map(([key, text, min, max]) => (
+                    <label key={key}>
+                      {text}
+                      <input
+                        type="number"
+                        min={min}
+                        max={max}
+                        value={data.settings[key]}
+                        onChange={(e) =>
+                          setting(
+                            key,
+                            Math.max(
+                              min,
+                              Math.min(max, Math.floor(Number(e.target.value))),
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p>
+                  Changes save automatically. Mastery needs at least five
+                  consecutive correct answers, three sessions, and two practice
+                  days. Personal records and improvement bonuses require at
+                  least 85% accuracy.
+                </p>
+                <h3>Progress & backups</h3>
+                <div className="backup-actions">
                   <button
                     className="secondary"
                     onClick={() => {
-                      setData(fresh());
-                      setReset(false);
+                      const url = URL.createObjectURL(
+                        new Blob([JSON.stringify(data, null, 2)], {
+                          type: "application/json",
+                        }),
+                      );
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `math-minutes-${today()}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
                     }}
                   >
-                    Yes, erase progress
-                  </button>{" "}
-                  <button className="secondary" onClick={() => setReset(false)}>
-                    Keep my progress
+                    Export progress ↓
+                  </button>
+                  <label className="secondary import">
+                    Import progress ↑
+                    <input
+                      type="file"
+                      accept="application/json,.json"
+                      onChange={async (e) => {
+                        try {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const imported: unknown = JSON.parse(
+                            await file.text(),
+                          );
+                          if (!valid(imported)) throw Error();
+                          if (
+                            confirm(
+                              "Replace current progress with this backup?",
+                            )
+                          ) {
+                            setData(normalize(imported));
+                            setNotice("Progress imported successfully.");
+                          }
+                        } catch {
+                          setNotice(
+                            "That backup could not be read. Choose a Math Minutes JSON export.",
+                          );
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <button
+                    className="text-button danger"
+                    onClick={() => setReset(true)}
+                  >
+                    Reset progress
                   </button>
                 </div>
-              )}
-            </section>
+                {reset && (
+                  <div role="alert" className="notice">
+                    <p>
+                      Erase all saved practice, records, and settings on this
+                      browser? Export a backup first if you want to keep them.
+                    </p>
+                    <button
+                      className="secondary"
+                      onClick={() => {
+                        setData(fresh());
+                        setReset(false);
+                      }}
+                    >
+                      Yes, erase progress
+                    </button>{" "}
+                    <button
+                      className="secondary"
+                      onClick={() => setReset(false)}
+                    >
+                      Keep my progress
+                    </button>
+                  </div>
+                )}
+              </section>
+            </RewardsPanel>
             <section className="panel">
               <h2>Bonus challenge history</h2>
               <p>
                 Correct standalone challenges earn the configured bonus
-                (currently {data.settings.bonus} minutes), within the shared
-                daily time and rewarded-session limits. Each challenge that
-                earns minutes uses one reward slot.
+                (currently {data.settings.bonus} practice points), within the
+                shared daily point and rewarded-session limits. Points convert
+                to time and/or savings under your reward settings.
               </p>
               {(data.bonusHistory ?? []).length ? (
                 <div className="table-scroll">
@@ -960,7 +1087,9 @@ function App() {
                           <td>{b.date}</td>
                           <td>{b.numbers.join(" + ")}</td>
                           <td>{b.correct ? "Solved" : "Practiced"}</td>
-                          <td>{b.minutes} min</td>
+                          <td>
+                            {b.minutes} min · {money(b.cents ?? 0)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -990,7 +1119,9 @@ function App() {
                           {s.correct}/{s.total}
                         </td>
                         <td>{Math.round(accuracy(s) * 100)}%</td>
-                        <td>{s.minutes} min</td>
+                        <td>
+                          {s.minutes} min · {money(s.cents ?? 0)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -17,7 +17,7 @@ Open the local URL printed by Vite. Use `npm test` for the automated domain test
 
 Choose addition or subtraction, answer five untimed warm-up questions, then complete a two-minute round. Enter numbers with your keyboard and press Enter, or use the on-screen keypad. An optional untimed three-number addition challenge follows, with two attempts and a hint. Results include accuracy, earned game time, reward details, and a review of missed facts.
 
-Default rewards: 5 minutes for completing a session, plus the highest applicable accuracy tier (70%: 2, 85%: 4, 95%: 5), 2 for improvement, and 2 for the bonus challenge. Improvement requires at least two more correct answers than the previous round of the same operation, at least 85% accuracy, and no more than a five-percentage-point accuracy decrease. Default limits are 20 minutes and two rewarded sessions per local calendar day. Additional practice remains available. Game time is a record for parents; this app does not control the device.
+Default practice points: 5 points for completing a session, plus the highest applicable accuracy tier (70%: 2, 85%: 4, 95%: 5), 2 for improvement, and 2 for the bonus challenge. Improvement requires at least two more correct answers than the previous round of the same operation, at least 85% accuracy, and no more than a five-percentage-point accuracy decrease. Default limits are 20 practice points and two rewarded sessions per local calendar day. Additional practice remains available. Game time is a record for parents; this app does not control the device.
 
 Adaptive selection targets 60% learning, 25% practicing, and 15% mastered facts, redistributing when a category is unavailable. Unseen facts, errors, slower responses, and related fact families receive additional weight. Each ordered addition and subtraction fact has its own record. Mastery requires at least five consecutive successes, 85% lifetime accuracy, three successful sessions, and successful practice on two different days. Slow correct answers count as successes. Warm-up attempts contribute to mastery; bonus challenges do not.
 
@@ -25,7 +25,7 @@ Adaptive selection targets 60% learning, 25% practicing, and 15% mastered facts,
 
 Answer the simple entry question to see recent scores, accuracy, response times, facts needing practice, and session history. This gate prevents accidental changes and is not secure authentication. Configure the nickname, enabled operations, operand bounds, sound, and every reward amount and limit. Settings save immediately. Export JSON regularly to preserve a backup or move progress between devices; importing replaces the current progress after confirmation. Reset requires confirmation.
 
-Progress uses the versioned `math-minutes-v1` localStorage key. Missing or invalid data starts fresh; blocked/full storage displays a warning. Clearing browser data clears progress. Local date changes reset only daily counters, preserving history and records. No data leaves the device.
+Progress uses schema version 2 under the original `math-minutes-v1` localStorage key for continuity. Version 1 backups are migrated automatically. Missing or invalid data starts fresh; blocked/full storage displays a warning. Clearing browser data clears progress. Local date changes reset only daily counters, preserving history and records. No data leaves the device.
 
 ## GitHub Pages
 
@@ -62,6 +62,34 @@ The timer uses a wall-clock deadline, so backgrounding a tab does not extend the
 
 Browser checks run with `npx playwright install chromium` followed by `npm run test:e2e`. They exercise addition and subtraction, timed expiry, warm-up corrections, keypad editing, bonus retries, skipping disabled bonuses, reward totals, review, parent settings, persistence, and desktop/mobile layouts.
 
-For direct access, choose **Bonus practice** on the home screen. This untimed mode offers repeated three-number addition questions, hints, and answer feedback without starting a full session. A correct standalone challenge earns the configured bonus (2 minutes by default), subject to the shared daily minute cap and rewarded-session limit. Each standalone challenge that earns minutes uses one rewarded-session slot; unsuccessful or capped challenges do not consume a slot. Standalone challenges are saved in separate bonus history and do not affect fact mastery or two-minute personal records. The home shortcut follows the parent's bonus-challenge setting.
+For direct access, choose **Bonus practice** on the home screen. This untimed mode offers repeated three-number addition questions, hints, and answer feedback without starting a full session. A correct standalone challenge earns the configured bonus (2 practice points by default), subject to the shared daily point cap, currency caps, and rewarded-session limit. Each standalone challenge that earns points uses one rewarded-session slot; unsuccessful or point-capped challenges do not consume a slot. Standalone challenges are saved in separate bonus history and do not affect fact mastery or two-minute personal records. The home shortcut follows the parent's bonus-challenge setting.
 
 Bonus problems have separate Hundreds, Tens, and Ones answer boxes, plus optional carry-note boxes above Hundreds and Tens. Entry begins in Ones; tap any box or use left/right arrow keys within a row. The keypad writes into the selected box. Fill Ones and Tens, leaving Hundreds blank when unnecessary, and press Check or Enter when ready. Carry notes are scratch work and do not affect correctness; retrying preserves the working.
+
+## Reward bank and savings goals
+
+The home balance includes unused rewards from earlier days. Parents record game minutes used; no operating-system enforcement or payment processing occurs. Daily counters reset locally, but bank balances and the ledger persist.
+
+Parent space → Rewards & balances controls:
+
+- Reward type: time, savings, or both. Default remains time only.
+- Independent conversion rates: default 1 minute and 5 cents per practice point. Savings are awarded only when savings/both is selected.
+- Independent daily caps: default 20 game minutes and $10 savings. The existing daily point cap and rewarded-session limit are applied first. Spending never reopens that day’s earning allowance.
+- A single active goal: name, USD price, uploaded photo, and parent-confirmed purchase. Photos are resized and compressed on the device; no image URLs or third-party requests are used.
+- The approximate sessions remaining at 10 points per session. A $100 item needs ten times as much work as a $10 item at an unchanged rate. The estimate assumes savings enabled and uncapped awards; real rewards depend on practice outcomes.
+- Parent contributions (including starting savings), game time used, signed balance corrections with required explanations, and goal purchases. Entries cannot make either balance negative. Purchasing deducts the goal price and retains any surplus; choosing a new goal retains saved money.
+- A dated ledger with running balances, period filters (last 7/30 days or all time), practice activity, and earned/used summaries. The child has a read-only activity view.
+
+Awards store their actual point, minute, and cent amounts. Changing rates never recalculates past awards; rate changes and corrections are recorded as new ledger entries. Savings use integer cents.
+
+On migration, historical full-session and bonus time awards become ledger entries exactly once. Because previous versions did not track time used, the parent must confirm unused historical minutes before recording time spending/corrections. New earnings remain intact during this confirmation. Existing practice and mastery records are preserved. Export/import includes the ledger, settings, goal, and embedded photo; keep regular backups since browser data is device-specific.
+
+Additional modules: `src/bank.ts` implements awards, conversions, ledger transactions and migration; `src/RewardsPanel.tsx` implements parent reward controls, reporting, and the pictured goal card. Tests cover migration, round trips, independent caps, spending, contributions, purchases, duplicate-award prevention, historical-rate preservation, and desktop/mobile parent workflows.
+
+## Simple reward setup
+
+Parent space starts with Rewards. Choose Game time, Save for something, A little of both, or Practice only, review the preview, then press Apply preset. Savings pacing offers Steady ($0.50 per typical 10-point session), Faster ($1), or a custom rate. The estimate uses the goal price and current savings; accuracy and daily caps affect actual progress.
+
+Applying a preset restores the default reward-point amounts (5 completion; 2/4/5 accuracy tiers; 2 improvement; 2 bonus), a 20-point daily limit, two rewarded sessions daily, a 20-minute cap, and a $10 savings cap. It sets one minute per point and the selected savings rate. Existing balances, goals, daily usage, practice history, curriculum, and photos are preserved. Practice only earns neither currency; existing rewards can still be used.
+
+Use Activity & balances for spending, contributions, corrections, and reports. Advanced settings contains custom conversion rates/caps, point rules, curriculum, sound, nickname, import/export, and reset. Advanced changes save immediately; preset selections do not take effect until applied.
