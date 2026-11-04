@@ -85,3 +85,11 @@ Awards store their actual point, minute, and cent amounts. Changing rates never 
 On migration, historical full-session and bonus time awards become ledger entries exactly once. Because previous versions did not track time used, the parent must confirm unused historical minutes before recording time spending/corrections. New earnings remain intact during this confirmation. Existing practice and mastery records are preserved. Export/import includes the ledger, settings, goal, and embedded photo; keep regular backups since browser data is device-specific.
 
 Additional modules: `src/bank.ts` implements awards, conversions, ledger transactions and migration; `src/RewardsPanel.tsx` implements parent reward controls, reporting, and the pictured goal card. Tests cover migration, round trips, independent caps, spending, contributions, purchases, duplicate-award prevention, historical-rate preservation, and desktop/mobile parent workflows.
+
+## Simple reward setup
+
+Parent space starts with Rewards. Choose Game time, Save for something, A little of both, or Practice only, review the preview, then press Apply preset. Savings pacing offers Steady ($0.50 per typical 10-point session), Faster ($1), or a custom rate. The estimate uses the goal price and current savings; accuracy and daily caps affect actual progress.
+
+Applying a preset restores the default reward-point amounts (5 completion; 2/4/5 accuracy tiers; 2 improvement; 2 bonus), a 20-point daily limit, two rewarded sessions daily, a 20-minute cap, and a $10 savings cap. It sets one minute per point and the selected savings rate. Existing balances, goals, daily usage, practice history, curriculum, and photos are preserved. Practice only earns neither currency; existing rewards can still be used.
+
+Use Activity & balances for spending, contributions, corrections, and reports. Advanced settings contains custom conversion rates/caps, point rules, curriculum, sound, nickname, import/export, and reset. Advanced changes save immediately; preset selections do not take effect until applied.

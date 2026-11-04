@@ -81,6 +81,9 @@ test("subtraction, wrong-answer review, and bonus-disabled completion", async ({
   await page.getByRole("button", { name: "Parent space" }).click();
   await page.getByLabel("Parent gate answer").fill("21");
   await page.getByRole("button", { name: "Continue" }).click();
+  await page
+    .getByRole("button", { name: "Advanced settings", exact: true })
+    .click();
   await page.getByLabel("Optional bonus challenges").uncheck();
   await page.getByRole("button", { name: "math minutes" }).click();
   await page
@@ -177,14 +180,19 @@ test("parents configure both rewards, pictured goals, spending, and durable bala
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await parent(page);
+  await page
+    .getByRole("button", { name: "Advanced settings", exact: true })
+    .click();
   await page.getByLabel("Reward type", { exact: true }).selectOption("both");
+  await page
+    .getByLabel("Dollars per practice point", { exact: true })
+    .fill("0.50");
+  await page.getByRole("button", { name: "Rewards", exact: true }).click();
   await page
     .getByLabel("Goal name", { exact: true })
     .fill("Lego Space Explorer");
   await page.getByLabel("Goal price ($)", { exact: true }).fill("10");
-  await page
-    .getByLabel("Dollars per practice point", { exact: true })
-    .fill("0.50");
+
   await page
     .getByLabel("Goal photo (stored on this device)", { exact: true })
     .setInputFiles({
@@ -215,6 +223,9 @@ test("parents configure both rewards, pictured goals, spending, and durable bala
   await page.getByRole("button", { name: "Back to home", exact: true }).click();
   await expect(page.locator(".goal-card")).toContainText("$1.00");
   await parent(page);
+  await page
+    .getByRole("button", { name: "Activity & balances", exact: true })
+    .click();
   await page.getByLabel("Entry type", { exact: true }).selectOption("use");
   await page.getByLabel("Amount", { exact: true }).fill("1");
   await page
@@ -229,14 +240,13 @@ test("parents configure both rewards, pictured goals, spending, and durable bala
     .getByLabel("Explanation", { exact: true })
     .fill("Parent contribution");
   await page.getByRole("button", { name: "Record entry", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Record goal purchase" }),
-  ).toBeEnabled();
+
   await page.getByLabel("Report period", { exact: true }).selectOption("week");
   await page.screenshot({
     path: `/private/tmp/reward-bank-${test.info().project.name}.png`,
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Rewards", exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Record goal purchase" }).click();
   await expect(page.getByText("Purchased — enjoy your reward!")).toBeVisible();
@@ -277,7 +287,9 @@ test("legacy history requires explicit opening balance and retains historical aw
     localStorage.setItem("math-minutes-v1", JSON.stringify(d));
   });
   await page.reload();
-  await page.getByRole('button',{name:'Bonus practice'}).click();await fillBonus(page);await page.getByRole('button',{name:'Back to home',exact:true}).click();
+  await page.getByRole("button", { name: "Bonus practice" }).click();
+  await fillBonus(page);
+  await page.getByRole("button", { name: "Back to home", exact: true }).click();
   await parent(page);
   await expect(
     page.getByText("Confirm the opening time balance", { exact: true }),
@@ -297,4 +309,57 @@ test("legacy history requires explicit opening balance and retains historical aw
   expect(
     d.bank.entries.filter((e: { kind: string }) => e.kind === "legacy"),
   ).toHaveLength(1);
+});
+
+test("presets preview without changing balances and practice-only pauses awards", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Bonus practice" }).click();
+  await fillBonus(page);
+  await page.getByRole("button", { name: "Back to home", exact: true }).click();
+  await parent(page);
+  await expect(page.getByLabel("Reward type", { exact: true })).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Save for something", exact: false })
+    .click();
+  await page.getByLabel("Earning pace", { exact: true }).selectOption("faster");
+  let d = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("math-minutes-v1")!),
+  );
+  expect(d.bank.config.mode).toBe("time");
+  await expect(page.locator(".preset-preview")).toContainText("$1.00");
+  await page.screenshot({
+    path: `/private/tmp/preset-settings-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Apply preset", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Existing rewards are unchanged",
+  );
+  d = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("math-minutes-v1")!),
+  );
+  expect(d.bank.config.mode).toBe("savings");
+  expect(d.bank.config.centsPerPoint).toBe(10);
+  expect(
+    d.bank.entries.reduce(
+      (s: number, e: { minutes: number }) => s + e.minutes,
+      0,
+    ),
+  ).toBe(2);
+  await page
+    .getByRole("button", { name: "Practice only", exact: false })
+    .click();
+  await page.getByRole("button", { name: "Apply preset", exact: true }).click();
+  await page.getByRole("button", { name: "math minutes" }).click();
+  await page.getByRole("button", { name: "Bonus practice" }).click();
+  await fillBonus(page);
+  await expect(
+    page.getByText("Practice-only mode:", { exact: false }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `/private/tmp/reward-presets-${test.info().project.name}.png`,
+    fullPage: true,
+  });
 });

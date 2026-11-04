@@ -536,15 +536,9 @@ function App() {
                 <div>
                   <b>A bigger little challenge</b>
                   <p>
-                    Three numbers, no timer. Earn up to{" "}
-                    {bank.config.mode !== "savings"
-                      ? `${data.settings.bonus * bank.config.minutesPerPoint} game minutes`
-                      : ""}
-                    {bank.config.mode === "both" ? " and " : ""}
-                    {bank.config.mode !== "time"
-                      ? money(data.settings.bonus * bank.config.centsPerPoint)
-                      : ""}{" "}
-                    per challenge, within your daily limits.
+                    {bank.config.mode === "none"
+                      ? "Three numbers, no timer. Practice for the joy of learning."
+                      : `Three numbers, no timer. Earn up to ${bank.config.mode !== "savings" ? `${data.settings.bonus * bank.config.minutesPerPoint} game minutes` : ""}${bank.config.mode === "both" ? " and " : ""}${bank.config.mode !== "time" ? money(data.settings.bonus * bank.config.centsPerPoint) : ""} per challenge, within your daily limits.`}
                   </p>
                 </div>
                 <button className="secondary" onClick={() => openBonus(true)}>
@@ -664,7 +658,9 @@ function App() {
               +{bonusMinutes} game minutes and {money(bonusCents)} earned ·{" "}
               {balance.minutes} minutes available.
               {bonusWon && bonusMinutes === 0 && bonusCents === 0
-                ? " Today’s reward limit applies. You can keep practicing!"
+                ? bank.config.mode === "none"
+                  ? " Practice-only mode: your learning keeps growing!"
+                  : " Today’s reward limit applies. You can keep practicing!"
                 : ""}
             </p>
             <button className="primary" onClick={() => openBonus(true)}>
@@ -904,155 +900,168 @@ function App() {
                 );
               })}
             </div>
-            <RewardsPanel data={data} onChange={setData} />
-            <section className="panel settings">
-              <h2>Practice settings</h2>
-              <label>
-                Child’s nickname
-                <input
-                  maxLength={30}
-                  value={data.settings.nickname}
-                  onChange={(e) => setting("nickname", e.target.value)}
-                />
-              </label>
-              <div className="settings-grid">
-                {(
-                  ["addition", "subtraction", "bonusEnabled", "sound"] as const
-                ).map((key) => (
-                  <label className="check" key={key}>
-                    <input
-                      type="checkbox"
-                      checked={data.settings[key]}
-                      onChange={(e) => setting(key, e.target.checked)}
-                    />
-                    {
-                      {
-                        addition: "Addition practice",
-                        subtraction: "Subtraction practice",
-                        bonusEnabled: "Optional bonus challenges",
-                        sound: "Gentle answer sound",
-                      }[key]
-                    }
-                  </label>
-                ))}
-                {(
-                  [
-                    ["maxOperand", "Largest operand / subtrahend", 1, 12],
-                    [
-                      "maxMinuend",
-                      "Largest subtraction starting number",
-                      0,
-                      24,
-                    ],
-                    ["dailyLimit", "Maximum practice points per day", 0, 240],
-                    ["rewardedSessions", "Rewarded sessions per day", 0, 20],
-                    ["completion", "Session completion points", 0, 60],
-                    ["tier70", "70% accuracy points", 0, 60],
-                    ["tier85", "85% accuracy points", 0, 60],
-                    ["tier95", "95% accuracy points", 0, 60],
-                    ["improvement", "Improvement bonus points", 0, 60],
-                    ["bonus", "Bonus challenge points", 0, 60],
-                  ] as const
-                ).map(([key, text, min, max]) => (
-                  <label key={key}>
-                    {text}
-                    <input
-                      type="number"
-                      min={min}
-                      max={max}
-                      value={data.settings[key]}
-                      onChange={(e) =>
-                        setting(
-                          key,
-                          Math.max(
-                            min,
-                            Math.min(max, Math.floor(Number(e.target.value))),
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-              <p>
-                Changes save automatically. Mastery needs at least five
-                consecutive correct answers, three sessions, and two practice
-                days. Personal records and improvement bonuses require at least
-                85% accuracy.
-              </p>
-              <h3>Progress & backups</h3>
-              <div className="backup-actions">
-                <button
-                  className="secondary"
-                  onClick={() => {
-                    const url = URL.createObjectURL(
-                      new Blob([JSON.stringify(data, null, 2)], {
-                        type: "application/json",
-                      }),
-                    );
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `math-minutes-${today()}.json`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                >
-                  Export progress ↓
-                </button>
-                <label className="secondary import">
-                  Import progress ↑
+            <RewardsPanel data={data} onChange={setData}>
+              <section className="panel settings">
+                <h2>Practice settings</h2>
+                <label>
+                  Child’s nickname
                   <input
-                    type="file"
-                    accept="application/json,.json"
-                    onChange={async (e) => {
-                      try {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const imported: unknown = JSON.parse(await file.text());
-                        if (!valid(imported)) throw Error();
-                        if (
-                          confirm("Replace current progress with this backup?")
-                        ) {
-                          setData(normalize(imported));
-                          setNotice("Progress imported successfully.");
-                        }
-                      } catch {
-                        setNotice(
-                          "That backup could not be read. Choose a Math Minutes JSON export.",
-                        );
-                      }
-                      e.target.value = "";
-                    }}
+                    maxLength={30}
+                    value={data.settings.nickname}
+                    onChange={(e) => setting("nickname", e.target.value)}
                   />
                 </label>
-                <button
-                  className="text-button danger"
-                  onClick={() => setReset(true)}
-                >
-                  Reset progress
-                </button>
-              </div>
-              {reset && (
-                <div role="alert" className="notice">
-                  <p>
-                    Erase all saved practice, records, and settings on this
-                    browser? Export a backup first if you want to keep them.
-                  </p>
+                <div className="settings-grid">
+                  {(
+                    [
+                      "addition",
+                      "subtraction",
+                      "bonusEnabled",
+                      "sound",
+                    ] as const
+                  ).map((key) => (
+                    <label className="check" key={key}>
+                      <input
+                        type="checkbox"
+                        checked={data.settings[key]}
+                        onChange={(e) => setting(key, e.target.checked)}
+                      />
+                      {
+                        {
+                          addition: "Addition practice",
+                          subtraction: "Subtraction practice",
+                          bonusEnabled: "Optional bonus challenges",
+                          sound: "Gentle answer sound",
+                        }[key]
+                      }
+                    </label>
+                  ))}
+                  {(
+                    [
+                      ["maxOperand", "Largest operand / subtrahend", 1, 12],
+                      [
+                        "maxMinuend",
+                        "Largest subtraction starting number",
+                        0,
+                        24,
+                      ],
+                      ["dailyLimit", "Maximum practice points per day", 0, 240],
+                      ["rewardedSessions", "Rewarded sessions per day", 0, 20],
+                      ["completion", "Session completion points", 0, 60],
+                      ["tier70", "70% accuracy points", 0, 60],
+                      ["tier85", "85% accuracy points", 0, 60],
+                      ["tier95", "95% accuracy points", 0, 60],
+                      ["improvement", "Improvement bonus points", 0, 60],
+                      ["bonus", "Bonus challenge points", 0, 60],
+                    ] as const
+                  ).map(([key, text, min, max]) => (
+                    <label key={key}>
+                      {text}
+                      <input
+                        type="number"
+                        min={min}
+                        max={max}
+                        value={data.settings[key]}
+                        onChange={(e) =>
+                          setting(
+                            key,
+                            Math.max(
+                              min,
+                              Math.min(max, Math.floor(Number(e.target.value))),
+                            ),
+                          )
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p>
+                  Changes save automatically. Mastery needs at least five
+                  consecutive correct answers, three sessions, and two practice
+                  days. Personal records and improvement bonuses require at
+                  least 85% accuracy.
+                </p>
+                <h3>Progress & backups</h3>
+                <div className="backup-actions">
                   <button
                     className="secondary"
                     onClick={() => {
-                      setData(fresh());
-                      setReset(false);
+                      const url = URL.createObjectURL(
+                        new Blob([JSON.stringify(data, null, 2)], {
+                          type: "application/json",
+                        }),
+                      );
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `math-minutes-${today()}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
                     }}
                   >
-                    Yes, erase progress
-                  </button>{" "}
-                  <button className="secondary" onClick={() => setReset(false)}>
-                    Keep my progress
+                    Export progress ↓
+                  </button>
+                  <label className="secondary import">
+                    Import progress ↑
+                    <input
+                      type="file"
+                      accept="application/json,.json"
+                      onChange={async (e) => {
+                        try {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const imported: unknown = JSON.parse(
+                            await file.text(),
+                          );
+                          if (!valid(imported)) throw Error();
+                          if (
+                            confirm(
+                              "Replace current progress with this backup?",
+                            )
+                          ) {
+                            setData(normalize(imported));
+                            setNotice("Progress imported successfully.");
+                          }
+                        } catch {
+                          setNotice(
+                            "That backup could not be read. Choose a Math Minutes JSON export.",
+                          );
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <button
+                    className="text-button danger"
+                    onClick={() => setReset(true)}
+                  >
+                    Reset progress
                   </button>
                 </div>
-              )}
-            </section>
+                {reset && (
+                  <div role="alert" className="notice">
+                    <p>
+                      Erase all saved practice, records, and settings on this
+                      browser? Export a backup first if you want to keep them.
+                    </p>
+                    <button
+                      className="secondary"
+                      onClick={() => {
+                        setData(fresh());
+                        setReset(false);
+                      }}
+                    >
+                      Yes, erase progress
+                    </button>{" "}
+                    <button
+                      className="secondary"
+                      onClick={() => setReset(false)}
+                    >
+                      Keep my progress
+                    </button>
+                  </div>
+                )}
+              </section>
+            </RewardsPanel>
             <section className="panel">
               <h2>Bonus challenge history</h2>
               <p>

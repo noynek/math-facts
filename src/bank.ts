@@ -18,7 +18,7 @@ export type Entry = {
 export type Bank = {
   openingConfirmed: boolean;
   config: {
-    mode: "time" | "savings" | "both";
+    mode: "time" | "savings" | "both" | "none";
     minutesPerPoint: number;
     centsPerPoint: number;
     minuteCap: number;
@@ -73,7 +73,7 @@ export function award(
     );
   const c = bank.config;
   const minutes =
-    c.mode === "savings"
+    c.mode === "savings" || c.mode === "none"
       ? 0
       : Math.max(
           0,
@@ -83,7 +83,7 @@ export function award(
           ),
         );
   const cents =
-    c.mode === "time"
+    c.mode === "time" || c.mode === "none"
       ? 0
       : Math.max(
           0,
@@ -176,7 +176,7 @@ export function validBank(b: Bank): boolean {
     return (
       !!b &&
       typeof b.openingConfirmed === "boolean" &&
-      ["time", "savings", "both"].includes(b.config.mode) &&
+      ["time", "savings", "both", "none"].includes(b.config.mode) &&
       [
         b.config.minutesPerPoint,
         b.config.centsPerPoint,
